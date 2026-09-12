@@ -1,0 +1,63 @@
+﻿# ============================================================
+# 配置文件模板 (app.config.example)
+# Windows 端部署时:Copy-Item app.config.example app.config 后填写
+# 真实 app.config 被 .gitignore 排除,不会被自动更新覆盖
+# 由 Windows 端 update.ps1 读取
+# ============================================================
+
+# 部署目录 = git 仓库根(Windows 端源码所在路径)
+# git clone 后仓库根在这里;业务代码在它的子目录 淘宝直播AI巡检系统/
+REPO_DIR = C:\Services\app
+
+# 业务运行目录(注册计划任务时的工作目录;update.ps1 不需要此配置)
+# 注意:路径含中文,注册计划任务时 PowerShell 已用 UTF-8 处理,无需担心
+APP_DIR = C:\Services\app\淘宝直播AI巡检系统
+
+# Git 远程分支名
+BRANCH = main
+
+# Git 远程名称(默认 origin,克隆后自动生成)
+REMOTE_NAME = origin
+
+# git.exe 完整路径(装了 Git for Windows 后通常是这个)
+GIT_PATH = C:\Program Files\Git\cmd\git.exe
+
+# ============ SSH 免密配置(SYSTEM 账号关键)============
+# Windows 任务以 SYSTEM 身份运行,读不到你的登录凭据,
+# 所以用"SSH wrapper + 只读部署 key"解决免密。
+# ⚠️ 本项目用**独立部署 key**(Gitee 不允许同一把公钥重复添加到多个仓库):
+#   服务器上生成 id_ed25519_gitee_taobao → 公钥加到目标仓库 tao_bao_zhibo
+#   → 建独立 wrapper gitee-taobao-ssh.cmd(不要和参考项目的 gitee-ssh.cmd 混用)
+# 留空 = 走默认凭据(仅当你的仓库是公开的或 HTTPS 凭据已缓存)
+SSH_WRAPPER = C:\Services\gitee-taobao-ssh.cmd
+
+# ============ 依赖安装命令 ============
+# 本项目依赖巨大(torch/funasr 约 3GB),首次由 setup_windows.bat 装好,
+# 自动更新时不要每次重装!留空 = 不自动安装。
+# 只有改了 requirements.txt 才需要手动重装(命令见部署文档 FAQ)
+INSTALL_CMD =
+
+# ============ 测试/验证命令 ============
+# 本项目无自动化测试,留空 = 跳过测试验证
+TEST_CMD =
+
+# ============ 需要停止/重启的 Windows 计划任务名(逗号分隔)============
+# 本系统有两个常驻进程,分别注册为两个计划任务:
+TASK_NAMES = TaobaoWatcherTask, TaobaoComplianceTask
+
+# 日志文件路径(自动更新记录)
+LOG_FILE = C:\Services\app\logs\deploy.log
+
+# 单条命令超时时间(秒),防止 git 卡死
+COMMAND_TIMEOUT_SECONDS = 120
+
+# ============ 飞书授权到期提醒(check-lark-auth.ps1 用)============
+# lark-cli 的 user 授权(refresh token)约 7 天过期,过期后 --as user 操作会失败。
+# 此脚本每天检查一次,剩余天数 <= LARK_WARN_DAYS 时用 bot 身份发飞书提醒。
+# 接收方式二选一(优先 LARK_WARN_USER_ID 私聊):
+#   LARK_WARN_USER_ID:私聊发给谁(填 ou_xxx 用户 open_id)
+#   LARK_WARN_CHAT_ID:或发到哪个群(填 oc_xxx 群 ID),两者都填则用 USER_ID
+# 默认填的是「吴玄」(运营助理中心-AI组)的 open_id,已用 lark-cli 搜索确认
+LARK_WARN_USER_ID = ou_d6d9372a6311e324df4875f582dcad26
+LARK_WARN_CHAT_ID =
+LARK_WARN_DAYS = 3

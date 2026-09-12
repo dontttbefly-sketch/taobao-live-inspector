@@ -1,0 +1,287 @@
+# ============================================================
+# 淘宝直播 AI 巡检系统 配置文件
+# 使用方法：复制为 config.yaml 并填写真实值（config.example.yaml 为模板）
+# ============================================================
+
+# ---------- 主播列表（同一直播间多人轮播场景） ----------
+# 直播间链接 https://tbzb.taobao.com/live?liveId=xxx 中的 liveId
+# 所有主播共用同一个 liveId（直播间只有一个时，建议在下方 taobao.live_id 统一配置）
+# shift 为轮班时间表（可选），用于把录制场次归属到正确主播：
+#   "09:00-12:00" 或 "22:00-02:00"（支持跨天）；不填则场次归属到第一个主播
+anchors:
+  - name: "主播A"
+    taobao_user_id: ""
+    live_id: ""
+    shift: "09:00-12:00"
+    enabled: true
+  - name: "主播B"
+    taobao_user_id: ""
+    live_id: ""
+    shift: "12:00-15:00"
+    enabled: true
+
+# ---------- 淘宝登录态 ----------
+# 浏览器登录淘宝后，用 Cookie-Editor 插件导出（详见 README.md）
+# 必填：_m_h5_tk、_m_h5_tk_enc（匿名请求也会下发，但登录态更稳）
+# 建议补：cookie2、_tb_token_、unb、tracknick、uc1
+taobao:
+  cookie: ""
+  # 直播间统一 liveId（多个主播共用同一直播间时填这里，anchors 里的 live_id 留空即可）
+  # room_num：直播间编号（千牛直播列表接口用，可从旧场次 roomId 字段获取）
+  room_num: "74016"
+  live_id: ""
+  user_agent: "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  referer: "https://h5.m.taobao.com/"
+  # mtop H5 接口（roomstudio 直播详情，2026-08 实测有效）
+  api: "mtop.roomstudio.live.detail.get"
+  api_version: "1.0"
+  app_key: "12574478"
+  # 开播监听轮询间隔（秒）
+  poll_interval: 60
+  # 连续确认未开播达到该次数才结束场次，过滤接口瞬时抖动
+  offline_confirmations: 3
+  # 直播中流地址轮换刷新间隔（秒）
+  stream_refresh_interval: 900
+  # 旧 liveId 下播/流失效时，低频查询直播列表发现新的明确在播场次
+  live_discovery_interval: 180
+  # 同一直播间异常告警冷却，避免网络抖动刷屏
+  alert_cooldown_sec: 3600
+
+# ---------- 淘宝登录态自动恢复 ----------
+taobao_session:
+  enabled: true
+  provider: "ego_lite"
+  check_interval_sec: 300       # 失效后每 5 分钟检查一次 Ego Lite
+  reminder_interval_sec: 10800 # 未恢复时每 3 小时提醒一次
+  short_outage_sec: 7200       # 2 小时内最多补 2 张简报
+  cli_timeout_sec: 45
+  cli_path: "ego-browser"      # launchd/云服务器 PATH 受限时改为绝对路径
+  ego_task_name: "torras taobao session recovery"
+  landing_url: "https://market.m.taobao.com/"
+
+# ---------- 录制 ----------
+recorder:
+  ffmpeg: "ffmpeg"
+  out_dir: "data/recordings"   # 录像保存目录
+  # 录像分片时长（秒），0 = 整场一个文件；建议 1800（30分钟一片，抗中断）
+  segment_seconds: 600  # 10 分钟一片，闭合即简报触发点（简报节奏=分片节奏）
+  stall_timeout_sec: 90          # ffmpeg 存活但媒体字节不增长多久后判定卡死
+  retry_base_sec: 30             # 候选流全失败后的首次退避
+  retry_max_sec: 300             # 指数退避上限
+  session_stale_timeout_sec: 900 # 媒体停滞且状态接口持续失败多久后熔断收尾
+  # 录像保留天数（0=不清理）；周报生成后与每日巡检自动清理过期录像
+  retention_days: 1
+  # 飞书「主播上播班次表」：红色旗舰店格（含时间文字）会同步为本直播间主播排班。
+  # url / sheet_id 是私有运行值，只填入 config.yaml；空值时仍使用本地 schedules/ JSON。
+  schedule_feishu:
+    url: ""
+    sheet_id: ""
+    range: "A1:Z1600"
+    live_marker: "旗舰店"
+    sync_seconds: 300
+
+# ---------- 主巡检进程外看门狗 ----------
+# 只观察 watcher 主循环心跳；绝不调用 recorder.tick/start/stop/switch_url。
+watchdog:
+  enabled: true
+  heartbeat_interval_seconds: 5
+  timeout_seconds: 180
+  check_interval_seconds: 5
+  terminate_grace_seconds: 30
+
+# ---------- 合规词监听（默认禁用） ----------
+compliance:
+  mode: "disabled"  # disabled / shadow / live
+  poll_seconds: 1
+  wordlist:
+    spreadsheet_token: ""  # 敏感：只填在 config.yaml
+    sheet_name: "机器识别词库"
+    range: "A1:D5000"
+    sync_seconds: 300
+  audio:
+    out_dir: "data/compliance/audio"
+    ffmpeg: ""              # 空值时复用 recorder.ffmpeg
+    segment_seconds: 120
+    overlap_seconds: 30
+    holdback_seconds: 15
+    wallclock_tolerance_ms: 3000
+  recognizer:
+    model: "paraformer-zh"
+    revision: "v2.0.4"
+    vad_model: "fsmn-vad"
+    punc_model: "ct-punc"
+    device: "cpu"
+  delivery:
+    recipient_chat_id: ""   # 敏感；shadow 阶段保持为空
+
+# ---------- 单场业务日软边界 ----------
+# 正常约 05:50 开播、次日 01:00 左右下播；保留前后余量。
+# 01:10 等自然延时会纳入同一日报，01:30 之后的新场不并入。
+business_session:
+  earliest_start: "05:30"
+  latest_end: "01:30"
+
+# ---------- 统一转写（生产主链路） ----------
+transcription:
+  enabled: true
+  funasr_enabled: false  # 生产只等待飞书妙记，不自动或手工运行 FunASR
+  provider: "feishu_minutes"
+  window_seconds: 3600
+  brief_wait_seconds: 600
+  fallback_after_seconds: 1800  # 仅 funasr_enabled=true 的旧兼容配置生效
+  smart_empty_grace_polls: 20  # 空摘要/章节可能是生成中，约等 8 分钟再判定确实为空
+  poll_initial_seconds: 10
+  poll_max_seconds: 900
+  media_sample_rate: 16000
+  media_channels: 1
+  media_bitrate: "64k"
+  cleanup_source_after_persist: true
+  review_fallback_requires_confirmation: true
+
+# ---------- 语音转写备胎 (FunASR) ----------
+asr:
+  # SenseVoice + FSMN-VAD + CT-Transformer 标点（FunASR 备胎组合）
+  model: "sensevoice"
+  # 一体模型必须显式挂 VAD 和标点子模型，才能输出带标点、逐句时间戳的结果
+  vad_model: "iic/speech_fsmn_vad_zh-cn-16k-common-pytorch"
+  punc_model: "iic/punc_ct-transformer_cn-en-common-vocab471067-large"
+  device: "auto"               # auto / mps / cpu
+  vad_device: "cpu"            # 长直播稳定性：VAD 固定 CPU，避免 MPS 性能退化
+  punc_device: "cpu"           # 标点模型固定 CPU；主 SenseVoice 仍自动使用 MPS
+  batch_size_s: 300            # 长音频动态批处理
+  hotwords: "淘宝 直播 家人们 宝宝们 姐妹们 上链接 拍一发二 拍二发三 优惠券 秒杀 现货 预售 尾款"
+
+# ---------- 高亮关键词词典（可自定义，命中即高亮信号） ----------
+highlight:
+  # 相邻高亮信号合并窗口（秒）
+  merge_window: 30
+  max_duration: 45
+  # 各类别的关键词（子串匹配，包含即命中）
+  categories:
+    逼单:
+      - "拍一发"
+      - "拍二发"
+      - "上车"
+      - "手慢无"
+      - "最后"
+      - "仅限"
+      - "错过"
+      - "库存"
+      - "秒杀"
+      - "抢"
+      - "数量有限"
+      - "今天不发"
+    催付:
+      - "赶紧下单"
+      - "马上下单"
+      - "付款"
+      - "去支付"
+      - "拍下"
+      - "下单"
+      - "链接挂"
+      - "点击购买"
+    福利:
+      - "优惠券"
+      - "满减"
+      - "赠品"
+      - "买一送一"
+      - "立减"
+      - "折扣"
+      - "补贴"
+      - "免单"
+      - "抽奖"
+      - "红包"
+    互动:
+      - "扣1"
+      - "扣个1"
+      - "扣一"
+      - "公屏"
+      - "评论区"
+      - "点赞"
+      - "关注"
+      - "转发"
+      - "有没有"
+      - "觉得"
+    产品:
+      - "成分"
+      - "质地"
+      - "肤质"
+      - "色号"
+      - "尺码"
+      - "材质"
+      - "工艺"
+      - "产地"
+      - "含量"
+      - "规格"
+
+# ---------- 话术库 ----------
+talktrack:
+  # 开场话术窗口：开播前 N 秒内识别为「开场」
+  opening_window_sec: 180
+  # 相似话术合并阈值（0~1，越高越严格）
+  dedupe_threshold: 0.85
+
+# ---------- 复盘报告 ----------
+report:
+  out_dir: "data/reports"
+  # 周报聚合天数
+  week_days: 7
+  # 自动周报（显式开启才会发群消息；weekday: 0=周一，6=周日）
+  weekly_push:
+    enabled: false
+    weekday: 0
+    hour: 10
+    days: 7
+
+# ---------- 整场复盘终结 ----------
+# 只有平台明确下播连续确认后才创建；按 liveId 生成一张整场卡。
+review:
+  platform_wait_minutes: 30  # 等待平台冻结总账与主播上下钟指标的最长时间
+
+# ---------- 路径 ----------
+paths:
+  db: "data/inspection.db"
+  logs: "data/logs"
+
+# ---------- 飞书通知 ----------
+# enabled: true 后，每场直播复盘完成自动：往群推摘要卡片 + 多维表格追加一行
+# chat_id 填群 ID（oc_xxx，留空则只写多维表格不推卡片）
+# 多维表格首次运行自动创建，token 自动存 data/notify_state.json
+notify:
+  feishu:
+    enabled: false
+    chat_id: ""
+    # 人工反馈闭环（默认关闭）：开启后会在同一多维表格应用中创建「高亮话术反馈」表，
+    # 双榜话术按唯一键写入；人工选择 好/一般/误判 后，每小时同步并影响后续精选。
+    highlight_feedback:
+      enabled: false
+    # 面向经营管理的六表复盘中心，与上述技术碎片统计表独立。
+    review_center:
+      enabled: false
+      auto_sync: true
+
+# ---------- DeepSeek Provider 凭据与模型 ----------
+# 这里只保存兼容 Chat Completions Provider 的凭据和模型名；示例绝不填真实 Key。
+# 飞书妙记仍是逐字稿、摘要、章节和金句的唯一来源，不由此 Provider 生成。
+llm:
+  provider: "deepseek"
+  api_key: ""
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-chat"
+
+# ---------- 证据化经营智能闭环 ----------
+# DeepSeek 分析调用最多等待 600 秒（thinking 模式一小时上下文约需 5-10 分钟）。
+# 模型/结构失败只持久化失败原因并提醒重试，禁止用固定模板冒充正式分析或发送缩水简报。
+intelligence:
+  enabled: true
+  deadline_seconds: 600
+  structure_repair_attempts: 1
+  reasoning:
+    hourly: "enabled"
+    platform: "enabled"
+
+# ---------- 整点小时简报 ----------
+# 只处理已闭合的绝对整点窗口；轮换、重启和分片换片不改变窗口边界。
+briefing:
+  enabled: true
+  part_min_age: 120         # 分片闭合判定：mtime 距今超过 120 秒视为已写完

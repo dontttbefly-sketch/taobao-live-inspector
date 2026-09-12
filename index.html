@@ -1,0 +1,625 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#070a10">
+<title>淘宝直播 AI 巡检系统 · 全天候自动录制与复盘</title>
+<meta name="description" content="面向直播团队的 24 小时自动巡检系统：开播监听、自动拉流录制、FunASR 语音转写、高亮切片检测、话术自动入库与每场复盘报告。">
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #070a10;
+    --panel: rgba(15, 20, 30, 0.72);
+    --panel-solid: #0d1219;
+    --line: rgba(120, 190, 220, 0.14);
+    --line-strong: rgba(120, 190, 220, 0.3);
+    --text: #eef3f8;
+    --muted: #97a3b2;
+    --subtle: #74808f;
+    --accent: #4fd1c5;
+    --accent-2: #7aa2f7;
+    --warm: #f0b47a;
+    --radius: 12px;
+    --max: 1080px;
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: var(--text);
+    background:
+      radial-gradient(circle at 78% 4%, rgba(79, 209, 197, 0.09), transparent 34%),
+      radial-gradient(circle at 12% 82%, rgba(122, 162, 247, 0.07), transparent 30%),
+      linear-gradient(180deg, #070a10 0%, #080c14 55%, #0a0f18 100%);
+    overflow-x: hidden;
+  }
+
+  a { color: inherit; }
+
+  .wrap {
+    width: min(var(--max), calc(100% - 40px));
+    margin: 0 auto;
+  }
+
+  .topbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    border-bottom: 1px solid var(--line);
+    background: rgba(7, 10, 16, 0.86);
+    backdrop-filter: blur(14px);
+  }
+
+  .topbar-in {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    min-height: 62px;
+  }
+
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 11px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .brand-dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 4px rgba(79, 209, 197, 0.14);
+  }
+
+  .topbar a.gh {
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 700;
+    text-decoration: none;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 8px 15px;
+  }
+
+  .topbar a.gh:hover { color: var(--text); border-color: var(--line-strong); }
+
+  .hero { padding: 78px 0 62px; }
+
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 15px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--accent);
+    background: rgba(79, 209, 197, 0.06);
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  h1 {
+    margin: 22px 0 0;
+    font-size: 54px;
+    line-height: 1.08;
+    letter-spacing: -0.5px;
+  }
+
+  .lead {
+    max-width: 720px;
+    margin: 20px 0 0;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1.8;
+  }
+
+  .metrics {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-top: 40px;
+  }
+
+  .metric {
+    padding: 20px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .metric strong {
+    display: block;
+    font-size: 28px;
+    line-height: 1;
+    color: var(--accent);
+  }
+
+  .metric span {
+    display: block;
+    margin-top: 9px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  section { padding: 54px 0; }
+
+  .sec-kicker {
+    margin: 0 0 10px;
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+
+  h2 {
+    margin: 0;
+    font-size: 32px;
+    line-height: 1.2;
+  }
+
+  .sec-copy {
+    max-width: 660px;
+    margin: 14px 0 0;
+    color: var(--muted);
+    line-height: 1.8;
+  }
+
+  .flow {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+    margin-top: 32px;
+  }
+
+  .step {
+    position: relative;
+    padding: 20px 16px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--panel);
+  }
+
+  .step-num {
+    display: block;
+    color: var(--accent-2);
+    font-size: 12px;
+    font-weight: 900;
+    letter-spacing: 0.1em;
+  }
+
+  .step strong {
+    display: block;
+    margin: 10px 0 7px;
+    font-size: 16px;
+  }
+
+  .step p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.65;
+  }
+
+  .report {
+    margin-top: 32px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--panel-solid);
+  }
+
+  .report-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 22px 24px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .report-head h3 {
+    margin: 0;
+    font-size: 20px;
+  }
+
+  .report-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 11px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .report-body {
+    display: grid;
+    grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+    gap: 0;
+  }
+
+  .report-col { padding: 24px; }
+
+  .report-col + .report-col { border-left: 1px solid var(--line); }
+
+  .col-title {
+    margin: 0 0 16px;
+    color: var(--subtle);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .bars { display: grid; gap: 14px; }
+
+  .bar-row { display: grid; gap: 7px; }
+
+  .bar-label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    font-size: 13.5px;
+  }
+
+  .bar-label b { color: var(--accent); font-weight: 800; }
+
+  .bar-track {
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--accent-2), var(--accent));
+  }
+
+  .clips { display: grid; gap: 12px; }
+
+  .clip {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 12px;
+    padding: 13px 14px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .clip time {
+    color: var(--warm);
+    font-size: 13px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .clip p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .clip .kind {
+    display: inline-block;
+    margin-bottom: 5px;
+    color: var(--subtle);
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+  }
+
+  .weekly {
+    width: 100%;
+    margin-top: 32px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    border-collapse: collapse;
+    overflow: hidden;
+    font-size: 14px;
+  }
+
+  .weekly th,
+  .weekly td {
+    padding: 13px 16px;
+    text-align: left;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .weekly th {
+    color: var(--subtle);
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    background: rgba(255, 255, 255, 0.02);
+  }
+
+  .weekly td { color: var(--muted); }
+
+  .weekly tbody tr:last-child td { border-bottom: 0; }
+
+  .weekly td b { color: var(--accent); font-weight: 800; }
+
+  .stack {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 26px;
+  }
+
+  .stack span {
+    padding: 9px 14px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.03);
+    font-size: 14px;
+    font-weight: 700;
+  }
+
+  .notes {
+    margin-top: 26px;
+    padding: 20px 22px;
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: 10px;
+    background: rgba(79, 209, 197, 0.045);
+  }
+
+  .notes p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.75; }
+
+  footer {
+    margin-top: 40px;
+    padding: 34px 0 60px;
+    border-top: 1px solid var(--line);
+    color: var(--subtle);
+    font-size: 13.5px;
+  }
+
+  footer a { color: var(--muted); font-weight: 700; }
+
+  @media (max-width: 940px) {
+    h1 { font-size: 40px; }
+    .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .flow { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .report-body { grid-template-columns: 1fr; }
+    .report-col + .report-col { border-left: 0; border-top: 1px solid var(--line); }
+  }
+
+  @media (max-width: 560px) {
+    h1 { font-size: 32px; }
+    .hero { padding: 52px 0 40px; }
+    section { padding: 40px 0; }
+    h2 { font-size: 25px; }
+    .flow { grid-template-columns: 1fr; }
+    .clip { grid-template-columns: 54px 1fr; gap: 9px; padding: 11px 12px; }
+    .weekly th, .weekly td { padding: 11px 11px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <span class="brand"><span class="brand-dot" aria-hidden="true"></span>淘宝直播 AI 巡检系统</span>
+    <a class="gh" href="https://github.com/dontttbefly-sketch/taobao-live-inspector">源码仓库</a>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero wrap">
+    <span class="eyebrow">24 小时无人值守 · 自动录制与复盘</span>
+    <h1>让每一场直播<br>都留下一份可复盘的记录</h1>
+    <p class="lead">
+      机器全天候监听直播间，开播即自动录制，把音频转成带时间戳的文字，自动挑出高亮片段，
+      再把话术归类入库。组长第二天打开报告，就能看到昨天每场直播讲了什么、
+      哪些话术值得沉淀、哪些环节需要调整。
+    </p>
+
+    <div class="metrics">
+      <div class="metric"><strong>24h</strong><span>全天候自动巡检，不区分班次</span></div>
+      <div class="metric"><strong>5</strong><span>步流水线，从流到报告全自动</span></div>
+      <div class="metric"><strong>逐句</strong><span>转写带时间戳，可定位到秒</span></div>
+      <div class="metric"><strong>1+1</strong><span>每场复盘报告 + 每周聚合周报</span></div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="sec-kicker">Pipeline</p>
+    <h2>从开播到报告的五步流水线</h2>
+    <p class="sec-copy">整条链路不需要人工介入，录制、转写、切片、入库、出报告依次自动完成。</p>
+
+    <div class="flow">
+      <div class="step">
+        <span class="step-num">STEP 01</span>
+        <strong>开播监听</strong>
+        <p>按直播间轮询开播状态，检测到开播即触发任务。</p>
+      </div>
+      <div class="step">
+        <span class="step-num">STEP 02</span>
+        <strong>自动拉流录制</strong>
+        <p>mtop 签名拉取直播流，ffmpeg 分段落盘，断流自动重连。</p>
+      </div>
+      <div class="step">
+        <span class="step-num">STEP 03</span>
+        <strong>语音转写</strong>
+        <p>FunASR 离线转写，输出逐句文本与精确时间戳。</p>
+      </div>
+      <div class="step">
+        <span class="step-num">STEP 04</span>
+        <strong>高亮切片</strong>
+        <p>关键词与声学双路检测，挑出值得回看的片段。</p>
+      </div>
+      <div class="step">
+        <span class="step-num">STEP 05</span>
+        <strong>话术入库 + 报告</strong>
+        <p>话术分类去重后入库，按场生成复盘、按周聚合周报。</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap">
+    <p class="sec-kicker">Report demo</p>
+    <h2>复盘报告长什么样</h2>
+    <p class="sec-copy">
+      下面是系统输出的一份单场复盘报告结构。为了让页面可以公开访问，
+      此处的主播名称、时间、话术内容全部为虚构示例数据，真实报告只在内部流转。
+    </p>
+
+    <div class="report">
+      <div class="report-head">
+        <h3>1 月 5 日 · 19:00–22:00 场次复盘</h3>
+        <div class="report-meta">
+          <span class="chip">主播甲</span>
+          <span class="chip">时长 3h 02m</span>
+          <span class="chip">转写 1842 句</span>
+          <span class="chip">高亮 6 段</span>
+        </div>
+      </div>
+
+      <div class="report-body">
+        <div class="report-col">
+          <p class="col-title">话术分布</p>
+          <div class="bars">
+            <div class="bar-row">
+              <span class="bar-label"><span>产品讲解</span><b>42%</b></span>
+              <span class="bar-track"><span class="bar-fill" style="width:42%"></span></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label"><span>促单转化</span><b>26%</b></span>
+              <span class="bar-track"><span class="bar-fill" style="width:26%"></span></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label"><span>互动承接</span><b>18%</b></span>
+              <span class="bar-track"><span class="bar-fill" style="width:18%"></span></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label"><span>疑问解答</span><b>14%</b></span>
+              <span class="bar-track"><span class="bar-fill" style="width:14%"></span></span>
+            </div>
+          </div>
+          <p class="col-title" style="margin-top:26px">本场沉淀</p>
+          <div class="bars">
+            <div class="bar-row">
+              <span class="bar-label"><span>新增话术</span><b>12 条</b></span>
+            </div>
+            <div class="bar-row">
+              <span class="bar-label"><span>重复命中已有话术</span><b>37 条</b></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="report-col">
+          <p class="col-title">高亮片段</p>
+          <div class="clips">
+            <div class="clip">
+              <time>19:12</time>
+              <div><span class="kind">产品讲解</span><p>三层锁温结构，冬天带出门四个小时还热。</p></div>
+            </div>
+            <div class="clip">
+              <time>19:38</time>
+              <div><span class="kind">促单转化</span><p>现在下单送同色杯套，限前五十单。</p></div>
+            </div>
+            <div class="clip">
+              <time>20:05</time>
+              <div><span class="kind">互动承接</span><p>刚进来的朋友扣个 1，我给你们看细节。</p></div>
+            </div>
+            <div class="clip">
+              <time>20:47</time>
+              <div><span class="kind">产品讲解</span><p>杯口是食品级不锈钢，直接喝没问题。</p></div>
+            </div>
+            <div class="clip">
+              <time>21:20</time>
+              <div><span class="kind">疑问解答</span><p>可以放洗碗机吗？内胆可以，杯盖不行。</p></div>
+            </div>
+            <div class="clip">
+              <time>21:52</time>
+              <div><span class="kind">促单转化</span><p>库存只剩八十多个了，拍下就是你的。</p></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <p class="sec-kicker" style="margin-top:44px">Weekly rollup</p>
+    <h2 style="font-size:24px">周报把多场聚合成趋势</h2>
+
+    <table class="weekly">
+      <thead>
+        <tr>
+          <th>日期</th>
+          <th>场次</th>
+          <th>总时长</th>
+          <th>转写句数</th>
+          <th>高亮片段</th>
+          <th>新增话术</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>1 月 5 日</td><td>1</td><td>3h 02m</td><td>1842</td><td><b>6</b></td><td><b>12</b></td></tr>
+        <tr><td>1 月 6 日</td><td>2</td><td>5h 31m</td><td>3260</td><td><b>11</b></td><td><b>19</b></td></tr>
+        <tr><td>1 月 7 日</td><td>2</td><td>5h 08m</td><td>3015</td><td><b>9</b></td><td><b>15</b></td></tr>
+        <tr><td>1 月 8 日</td><td>2</td><td>5h 22m</td><td>3187</td><td><b>13</b></td><td><b>21</b></td></tr>
+        <tr><td>1 月 9 日</td><td>1</td><td>2h 47m</td><td>1690</td><td><b>5</b></td><td><b>8</b></td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="wrap">
+    <p class="sec-kicker">Stack</p>
+    <h2>技术栈与运行方式</h2>
+    <p class="sec-copy">
+      纯 Python 实现，离线转写不依赖外部 API；数据落在本地 SQLite，
+      录像与转写结果按周归档。macOS 与 Windows 都能部署，Windows 侧带自动更新脚本。
+    </p>
+
+    <div class="stack">
+      <span>Python</span>
+      <span>FunASR</span>
+      <span>ffmpeg</span>
+      <span>Playwright</span>
+      <span>SQLite</span>
+      <span>mtop 拉流</span>
+      <span>飞书开放平台</span>
+      <span>Windows 计划任务</span>
+    </div>
+
+    <div class="notes">
+      <p>
+        <strong>关于公开版本：</strong>仓库中的排班表是虚构示例，用于说明数据格式；
+        真实配置（直播间地址、平台凭据、飞书 token）通过 <code>config.yaml</code> 本地注入，从不进入版本库。
+        页面上的报告数据同样为虚构样本。
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    淘宝直播 AI 巡检系统 · 演示页面 ·
+    <a href="https://github.com/dontttbefly-sketch/taobao-live-inspector">源码仓库</a>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+# ============================================================
+# .gitignore — 排除运行时文件,保证"覆盖"安全
+# 原理:git reset --hard 只动被 git 跟踪的文件;
+#       这里排除的文件不会被上传,也不会被覆盖。
+# ============================================================
+
+# ---- 日志 ----
+*.log
+logs/
+log/
+
+# ---- 数据库 / 数据文件 ----
+*.db
+*.sqlite
+*.sqlite3
+data/
+runtime/
+
+# ---- 用户上传的文件 ----
+uploads/
+upload/
+static/uploads/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+env/
+*.egg-info/
+
+# ---- Node.js ----
+node_modules/
+dist/
+build/
+.npm/
+
+# ---- Java ----
+target/
+*.class
+*.jar  # 注意:如果部署方式是 jar 包,需要删掉这行,改为 !app.jar
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- IDE ----
+.idea/
+.vscode/
+*.swp
+
+# ---- 本地工具数据 ----
+.workbuddy/
+
+# ---- 敏感配置(强烈建议:密钥文件不要进仓库)----
+.env
+.env.local
+config.local.*
+*.key
+*.pem
+
+# ---- 机器相关配置:模板进仓库,真实配置排除 ----
+# Windows 端从 app.config.example 复制一份 app.config 填写,
+# 这样 git reset --hard 覆盖源码时不会冲掉服务器上的配置
+app.config
+
+# ---- 业务敏感配置:模板进仓库,真实配置排除 ----
+# config.yaml 含真实淘宝 cookie / API key / 飞书 chat_id,绝不能上传!
+# Windows 端从 config.example.yaml 复制后手动填写
+config.yaml
+淘宝直播AI巡检系统/config.yaml
